@@ -7,7 +7,7 @@ it can display automatically:
 - attribute buffer content (vertex shader input),
 - vertex shader output,
 - geometry shader output, if present (or solid color),
-- primitive culling output (or solid color when culling is disabled),
+- primitive culler output (or solid color when culling is disabled),
 - and fragment shader output,
 
 more or less similar to http://msdn.microsoft.com/en-us/library/hh873194.aspx
@@ -18,3 +18,4 @@ you have to call the debug function:
 - gk::DebugDrawArrays(mode, first, count);
 - gk::DebugDrawElements(mode, count, type, offset);
 
+more details are on the wiki (and some screenshots, too).
