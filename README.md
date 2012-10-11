@@ -17,6 +17,7 @@ the code runs with opengl >= 3.3 core and compatibility profiles, and needs glew
 you have to call the debug function:
 - gk::DebugDrawArrays(mode, first, count);
 - gk::DebugDrawElements(mode, count, type, offset);
+
 browse to debug_main.cpp to see an example.
 
 
