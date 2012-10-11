@@ -12,10 +12,12 @@ it can display automatically:
 
 more or less similar to http://msdn.microsoft.com/en-us/library/hh873194.aspx
 
-the code runs with opengl >= 3.3 core and compatibility profiles, and needs GLEW et freeglut to build.
+the code runs with opengl >= 3.3 core and compatibility profiles, and needs glew and freeglut to build.
 
 you have to call the debug function:
 - gk::DebugDrawArrays(mode, first, count);
 - gk::DebugDrawElements(mode, count, type, offset);
+browse to debug_main.cpp to see an example.
+
 
 more details are on the wiki (and some screenshots, too).
