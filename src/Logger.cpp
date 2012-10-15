@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdarg>
 #include <string>
+#include <cstring>
 
 #include "Logger.h"
 
@@ -62,10 +63,20 @@ void Log::write( const unsigned int type, const char *file, const int line, cons
         // construit le message indexable
         if(type != MESSAGE)
         {
+            // extrait le nom de fichier, sans le chemin d'acces
+            const char *separator= strrchr(file, '/');  // unix 
+            if(separator == NULL)
+                separator= strrchr(file, '\\'); // essaye la convention windows
+            
+            if(separator != 0)
+                separator++;    // saute le separateur, s'il est defini
+            else
+                separator= file;
+                
         #ifndef _MSC_VER
-            snprintf(tmp, sizeof(tmp), "[%s:%d]\t", file, line);
+            snprintf(tmp, sizeof(tmp), "[%s:%d]\t", separator, line);
         #else
-            _snprintf(tmp, sizeof(tmp), "[%s:%d]\t", file, line);
+            _snprintf(tmp, sizeof(tmp), "[%s:%d]\t", separator, line);
         #endif
             message.append(tmp);
         }

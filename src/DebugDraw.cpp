@@ -62,26 +62,10 @@ unsigned int shader_stages[]= {
     FRAGMENT_STAGE_BIT
 };
 
-struct shader
-{
-    GLuint name;
-    GLenum type;        // duplicate data
-    //~ std::vector<GLchar> source;     // not used
-    //~ unsigned int hash;      // not used
-    
-    shader( )
-        :
-        name(0),
-        type(0)
-        //~ source(),
-        //~ hash(0)
-    {}
-};
 
 GLint active_program= 0;
-std::vector <shader> active_shaders;
+std::vector<GLuint> active_shaders;
 GLint active_shader_count= 0;
-unsigned int active_stages= 0;
 
 
 struct buffer_binding
@@ -184,7 +168,6 @@ int gl_sizeof( const int size, const GLenum type, const int stride= 0 )
 int get_active_program_stages( )
 {
     active_program= 0;
-    active_stages= 0;
     active_shader_count= 0;
     active_shaders.clear();
     active_shaders.resize(MAX_STAGES);
@@ -236,29 +219,23 @@ int get_active_program_stages( )
             type_name, shaders[i], 
             stage, shader_type_names[stage]);
 
-        //~ GLint source_length= 0;
-        //~ glGetShaderiv(shaders[i], GL_SHADER_SOURCE_LENGTH, &source_length);
-
         // assert shader order: vertex, control, evaluation, geometry, fragment, has to be compatible with shader_stages[] order.
-        active_shaders[stage].name= shaders[i];
-        active_shaders[stage].type= type;
-        //~ active_shaders[stage].source.resize(source_length);
-        //~ glGetShaderSource(shaders[i], source_length, NULL, &active_shaders[stage].source.front());
+        active_shaders[stage]= shaders[i];
     }
     
     WARNING("  done.\n");
     return 0;
 }
 
-shader *find_active_shader( const GLenum shader_type )
+GLuint find_active_shader( const GLenum shader_type )
 {
     for(int i= 0; i < MAX_STAGES; i++)
     {
-        if(shader_types[i] == shader_type && active_shaders[i].name != 0)
-            return &active_shaders[i];
+        if(shader_types[i] == shader_type && active_shaders[i] != 0)
+            return active_shaders[i];
     }
     
-    return NULL;
+    return 0;
 }
 
 
@@ -290,12 +267,12 @@ GLuint create_display_program( unsigned int mask, const char *fragment_source )
         if((mask & (1<<stage)) == 0)
             // not requested
             continue;
-        if(active_shaders[stage].name == 0)
+        if(active_shaders[stage] == 0)
             // not used by the application
             continue;
         
         // attach selected shader
-        glAttachShader(program, active_shaders[stage].name);
+        glAttachShader(program, active_shaders[stage]);
     }
     
     // attach display fragment shader
@@ -375,7 +352,7 @@ GLuint cache_get_display_program( unsigned int mask, const char *fragment_source
     std::vector<GLuint> stages(MAX_STAGES, 0);
     for(int i= 0; i < MAX_STAGES; i++)
         if((mask & (1<<i)) != 0)
-            stages[i]= active_shaders[i].name;
+            stages[i]= active_shaders[i];
     
     // look up program 
     int count= (int) programs.size();
@@ -730,7 +707,7 @@ int draw_vertex_stage( const draw_call& draw_params )
     glScissor(256, 0, 256, 256);
     glEnable(GL_SCISSOR_TEST);
     
-    if(find_active_shader(GL_VERTEX_SHADER) == NULL)
+    if(find_active_shader(GL_VERTEX_SHADER) == 0)
     {
         // nothing to do, display a solid color background ?
         glClearColor( .15f, 0.f, .15f, 1.f );
@@ -772,7 +749,7 @@ int draw_geometry_stage( const draw_call& draw_params )
     glScissor(512, 0, 256, 256);
     glEnable(GL_SCISSOR_TEST);
     
-    if(find_active_shader(GL_GEOMETRY_SHADER) == NULL)
+    if(find_active_shader(GL_GEOMETRY_SHADER) == 0)
     {
         // nothing to do, display a solid color background ?
         glClearColor( .5f, 0.f, .5f, 1.f );
@@ -832,8 +809,8 @@ int draw_culling_stage( const draw_call& draw_params )
             break;
     }
     
-    shader *geometry= find_active_shader(GL_GEOMETRY_SHADER);
-    if(geometry != NULL)
+    GLuint geometry= find_active_shader(GL_GEOMETRY_SHADER);
+    if(geometry != 0)
     {
         GLint output_type= 0;
         glGetProgramiv(active_program, GL_GEOMETRY_OUTPUT_TYPE, &output_type);

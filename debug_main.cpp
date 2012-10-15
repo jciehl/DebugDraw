@@ -89,7 +89,7 @@ int init( )
 {
     using namespace gk::debug;  // use available shader helpers from DebugDraw.
     
-    mesh= read_OBJ("bigguy.vbo.obj");   // reads a mesh
+    mesh= read_OBJ("bigguy.vbo.obj");   // read a mesh
     if(mesh.count == 0)
         return -1;
     
@@ -193,7 +193,7 @@ int main( int argc, char *argv[] )
     
     glutMainLoop();
     
-    // exit application
+    // clean up
     quit();
     MESSAGE("done.\n");
     return 0;
