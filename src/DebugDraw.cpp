@@ -20,6 +20,8 @@ namespace debug {
 GLint active_cull_test= 0;
 GLint active_polygon_modes[2];  //! \bug nvidia driver fills 2 GLenums instead of 1, according to state tables GL 4.3 core profile
 GLint active_viewport[4];
+
+GLint active_framebuffer= 0;
     
 GLenum shader_types[]= {
     GL_VERTEX_SHADER, 
@@ -190,7 +192,7 @@ int get_active_program_stages( )
     glGetIntegerv(GL_CURRENT_PROGRAM, &active_program);
     if(active_program == 0)
     {
-        WARNING("no shader program.\n");
+        ERROR("no shader program.\n");
         return -1;      // no program
     }
     
@@ -199,12 +201,15 @@ int get_active_program_stages( )
     GLint linked;
     glGetProgramiv(active_program, GL_LINK_STATUS, &linked);
     if(linked == GL_FALSE)
+    {
+        ERROR("shader program is not linked.\n");
         return -1;      // program can't run
+    }
     
     glGetProgramiv(active_program, GL_ATTACHED_SHADERS, &active_shader_count);
     if(active_shader_count == 0)
     {
-        ERROR("no shader objects attached, can't display stages.\n");
+        ERROR("shader program has no shader objects attached, can't display stages.\n");
         return -1;      // no shaders
     }
     
@@ -225,7 +230,6 @@ int get_active_program_stages( )
             if(shader_types[stage] != (GLenum) type)
                 continue;
             type_name= shader_type_names[stage];
-            //~ active_stages= active_stages | shader_stages[stage];
             break;
         }
         WARNING("  %s shader object %d (stage %d %s)\n", 
@@ -249,11 +253,10 @@ int get_active_program_stages( )
 shader *find_active_shader( const GLenum shader_type )
 {
     for(int i= 0; i < MAX_STAGES; i++)
-        //~ if(active_shaders[i].type == shader_type)
-        {
-            if(shader_types[i] == shader_type && active_shaders[i].name != 0)
-                return &active_shaders[i];
-        }
+    {
+        if(shader_types[i] == shader_type && active_shaders[i].name != 0)
+            return &active_shaders[i];
+    }
     
     return NULL;
 }
@@ -553,7 +556,7 @@ int draw_attribute( const int id, const draw_call& draw_params )
     
     if(active_buffers[id].length == 0)
     {
-        WARNING("  attribute buffer %d, null length.\n", active_buffers[id].buffer);
+        WARNING("  attribute buffer %d, null length. failed\n", active_buffers[id].buffer);
         return 0;
     }
 
@@ -608,7 +611,7 @@ int draw_attribute( const int id, const draw_call& draw_params )
     {
         std::vector<unsigned char> zeroes(length, 0);
         glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER, length, &zeroes.front(), GL_DYNAMIC_COPY);
-        WARNING("  resize feedback buffer: %d < %d\n", feedback_length, length);
+        //~ WARNING("  resize feedback buffer: %d < %d\n", feedback_length, length);
     }
     
     // convert buffer content
@@ -908,9 +911,13 @@ int draw_fragment_stage( const draw_call& draw_params )
 
 }       // namespace debug
 
-    
-void DebugDrawArrays( GLenum mode, GLint first, GLsizei count )
+
+void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count, const char *position )
 {
+    // perform regular draw
+    glDrawArrays(mode, first, count);
+    
+    // get required state
     debug::get_active_program_stages();
     debug::get_active_attributes();
     debug::get_active_buffer_bindings();
@@ -924,6 +931,13 @@ void DebugDrawArrays( GLenum mode, GLint first, GLsizei count )
     params.index_offset= 0;
     
     // store basic state
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &debug::active_framebuffer);
+    //! \todo create a standard framebuffer, when the application uses a special one.
+    if(debug::active_framebuffer != 0)
+    {
+        WARNING("rendering to an application defined framebuffer, will not work.\n");
+    }
+    
     GLfloat active_clear_color[4];
     glGetFloatv(GL_COLOR_CLEAR_VALUE, active_clear_color);
     
@@ -937,13 +951,20 @@ void DebugDrawArrays( GLenum mode, GLint first, GLsizei count )
     glGetIntegerv(GL_POLYGON_MODE, debug::active_polygon_modes);
     
     // display stages
-    debug::draw_attribute(0, params);
+    if(position == NULL)
+    {
+        WARNING("using default attribute 0.\n");
+        debug::draw_attribute(0, params);       // default attribute
+    }
+    else
+        debug::draw_attribute(position, params);
     debug::draw_vertex_stage(params);
     debug::draw_geometry_stage(params);
     debug::draw_culling_stage(params);
     debug::draw_fragment_stage(params);
     
     // restore application state
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, debug::active_framebuffer);    
     glBindVertexArray(debug::active_vertex_array);
     glUseProgram(debug::active_program);
 
@@ -962,22 +983,27 @@ void DebugDrawArrays( GLenum mode, GLint first, GLsizei count )
         glEnable(GL_CULL_FACE);
 }
 
-void DebugDrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *indices )
+void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum type, const GLvoid *indices, const char *position )
 {
+    // get required state
     debug::get_active_program_stages();
     debug::get_active_attributes();
     debug::get_active_buffer_bindings();
     
+    // check application bugs
     if(debug::active_index_buffer == 0)
     {
         ERROR("glDrawElements( ): no index buffer.\n");
         return;
     }
     
+    // perform regular draw
+    glDrawElements(mode, count, type, indices);
+
     if(mode == GL_PATCHES)
     {
         //! \todo display of patch primitives
-        WARNING("glDrawElements(GL_PATCHES): display control points. not implemented.\n");
+        ERROR("glDrawElements(GL_PATCHES): display control points. not implemented.\n");
         return;
     }
     
@@ -990,6 +1016,13 @@ void DebugDrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *i
     params.index_offset= (unsigned long int) indices;
     
     // store basic state
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &debug::active_framebuffer);
+    //! \todo create a standard framebuffer, when the application uses a special one.
+    if(debug::active_framebuffer != 0)
+    {
+        WARNING("rendering to an application defined framebuffer, will not work.\n");
+    }
+    
     GLfloat active_clear_color[4];
     glGetFloatv(GL_COLOR_CLEAR_VALUE, active_clear_color);
     
@@ -1003,16 +1036,23 @@ void DebugDrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *i
     glGetIntegerv(GL_POLYGON_MODE, debug::active_polygon_modes);
     
     // display stages    
-    debug::draw_attribute(0, params);   // display attribute 0, need user input for other cases.
+    if(position == NULL)
+    {
+        WARNING("using default attribute 0.\n");
+        debug::draw_attribute(0, params);       // default attribute
+    }
+    else
+        debug::draw_attribute(position, params);
     debug::draw_vertex_stage(params);
     debug::draw_geometry_stage(params);
     debug::draw_culling_stage(params);
     debug::draw_fragment_stage(params);
     
     // restore application state
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, debug::active_framebuffer);
     glBindVertexArray(debug::active_vertex_array);
     glUseProgram(debug::active_program);
-
+    
     if(active_scissor_test == 0) 
         glDisable(GL_SCISSOR_TEST);
     else

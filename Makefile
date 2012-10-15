@@ -1,14 +1,14 @@
-SRCS= debug_main.cpp DebugDraw.cpp  DebugDrawShaders.cpp Logger.cpp  Transform.cpp Buffers.cpp
+SRCS= debug_main.cpp Transform.cpp Buffers.cpp DebugDraw.cpp DebugDrawShaders.cpp Logger.cpp
 OBJS= $(SRCS:.cpp=.o)
 
 debug_main: $(OBJS)
-	g++ -o $@ $^ -L lib -Wl,-rpath,lib -lGL -lglut -lGLEW
+	g++ -g -o $@ $^ -L lib -Wl,-rpath,lib -lGL -lglut -lGLEW
 
 %.o: %.cpp
-	g++ -Wall -MMD -MP -I include/ -c $<
+	g++ -g -Wall -MMD -MP -I . -I include/ -c $<
 
 %.o: src/%.cpp
-	g++ -Wall -MMD -MP -I include/ -c $<
+	g++ -g -Wall -MMD -MP -I . -I include/ -c $<
 
 clean:
 	rm -f debug_main

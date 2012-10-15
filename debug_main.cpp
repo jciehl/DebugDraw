@@ -64,12 +64,16 @@ void draw( )
     
     if(mesh.indices > 0)
     {
-        glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, 0);
+        // usual openGL draw call:
+        // glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, 0);
+        // replaced by:
         gk::DebugDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, 0);
     }
     else
     {
-        glDrawArrays(GL_TRIANGLES, 0, mesh.count);
+        // usual openGL draw call:
+        // glDrawArrays(GL_TRIANGLES, 0, mesh.count);
+        // replaced by:
         gk::DebugDrawArrays(GL_TRIANGLES, 0, mesh.count);
     }
     
@@ -129,14 +133,9 @@ void resize( int width, int height )
     glViewport(0, 0, width, height);
 }
 
-// define a callback to use with opengl debug context
-#ifndef _MSC_VER
-  #define GK_CALLBACK
-#else
-  #define GK_CALLBACK __stdcall
-#endif
 
-void GK_CALLBACK debuglog( GLenum source, GLenum type, unsigned int id, GLenum severity, GLsizei length, const char* message, void* userParam )
+// define a callback to use with opengl debug context
+void GLAPIENTRY debuglog( GLenum source, GLenum type, unsigned int id, GLenum severity, GLsizei length, const char* message, void* userParam )
 {
     printf("openGL: %s\n", message);
     fflush(stdout);
@@ -188,6 +187,7 @@ int main( int argc, char *argv[] )
         return 1;
     }
     
+    // go
     glutReshapeFunc(resize);
     glutDisplayFunc(draw);
     

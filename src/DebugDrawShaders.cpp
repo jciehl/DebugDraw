@@ -106,8 +106,8 @@ GLuint create_program( const GLuint vertex, const GLuint fragment )
     if(link_program(program) == 0)
         return program;
     
-    glDetachShader(program, vertex);
-    glDetachShader(program, fragment);
+    glDeleteShader(vertex);
+    glDeleteShader(fragment);
     glDeleteProgram(program);
     return 0;
 }
@@ -119,11 +119,6 @@ GLuint create_program_from_string( const char *vertex, const char *fragment )
     
     return create_program(vertex_shader, fragment_shader);
 }
-
-//~ GLuint create_program_from_string( const std::string& vertex, const std::string& fragment )
-//~ {
-    //~ return create_program_from_string(vertex.c_str(), fragment.c_str());
-//~ }
 
 GLuint create_program_from_file( const char *vertex, const char *fragment )
 {
