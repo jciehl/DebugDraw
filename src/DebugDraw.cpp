@@ -717,6 +717,7 @@ int draw_attribute( const char *name, const draw_call& params )
         if(strcmp(&active_attributes[i].name.front(), name) == 0)
             return draw_attribute(i, params);
     
+    ERROR("attribute '%s' does not exist. can't display attribute buffer contents.\n", name);
     return -1;
 }
 
