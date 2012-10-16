@@ -9,6 +9,7 @@
 #include "Logger.h"
 #include "DebugDraw.h"
 #include "DebugDrawShaders.h"
+#include "glproc.hpp"
 
 #include "Transform.h"
 

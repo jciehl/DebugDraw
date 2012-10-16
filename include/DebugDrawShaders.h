@@ -4,7 +4,7 @@
 
 #include <string>
 
-#include "GL/glew.h"
+#include "glimports.hpp"
 
 
 namespace gk {
@@ -18,7 +18,6 @@ GLuint create_shader( GLenum type, const std::string& source );
 
 GLuint create_program( const GLuint vertex, const GLuint fragment );
 GLuint create_program_from_string( const char *vertex, const char *fragment );
-//~ GLuint create_program_from_string( const std::string& vertex, const std::string& fragment );
 GLuint create_program_from_file( const char *vertex, const char *fragment );
 
 int link_program( GLuint program );

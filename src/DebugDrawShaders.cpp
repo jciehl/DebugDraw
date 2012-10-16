@@ -4,6 +4,7 @@
 
 #include "Logger.h"
 #include "DebugDrawShaders.h"
+#include "glproc.hpp"
 
 
 namespace gk {

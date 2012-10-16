@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include "GL/glew.h"
+#include "glimports.hpp"
 
 
 GLuint create_buffer( const GLenum target, const GLint64 length, const void *data= NULL, const GLenum usage= GL_STATIC_DRAW );

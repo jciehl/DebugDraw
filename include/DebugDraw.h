@@ -2,7 +2,7 @@
 #ifndef _GK_DEBUG_DRAW_H
 #define _GK_DEBUG_DRAW_H
 
-#include "GL/glew.h"
+#include "glimports.hpp"
 
 
 namespace gk {

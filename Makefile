@@ -7,7 +7,7 @@ OBJS= $(SRCS:.cpp=.o)
 
 shared_main: $(OBJS)
 	@echo $(LIBDIR)
-	g++ -g -o $@ $^ -L lib -Wl,-rpath,$(LIBDIR) -lGL -lGLEW
+	g++ -g -o $@ $^ -L lib -Wl,-rpath,$(LIBDIR) -lGL -lX11 -ldl
 
 %.o: %.cpp
 	g++ $(CFLAGS) -c $<

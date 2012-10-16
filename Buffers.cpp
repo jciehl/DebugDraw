@@ -1,8 +1,8 @@
 
 #include <cstdio>
 
-#include "GL/glew.h"
 #include "Buffers.h"
+#include "glproc.hpp"
 #include "Logger.h"
 
 
