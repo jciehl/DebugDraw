@@ -57,7 +57,7 @@ Mesh read_OBJ( const char *filename )
         if(fgets(line, sizeof(line), in) == NULL)
             break;
         
-        line[1023]= 0;   // ends the string
+        line[1023]= 0;   // ends the string, a well formatted file will have shorter lines, anyway
         if(line[0] == 'v')
         {
             if(line[1] == ' ')  // position

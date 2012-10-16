@@ -139,7 +139,7 @@ int main( )
     
     glws::makeCurrent(drawable, context);
     drawable->show();
-    glws::processEvents();
+    //~ glws::processEvents();
     
     // simple check
     MESSAGE("openGL version: '%s'\nGLSL version: '%s'\n",
@@ -159,6 +159,27 @@ int main( )
         ERROR("failed.\n");
         return 1;
     }
+    
+    // create a shared context
+    glws::Context *shared= glws::createContext(visual, context, glws::PROFILE_CORE, true);
+    if(shared == NULL)
+        ERROR("error creating shared context.\n");
+    
+    // test: shared object namespace ?
+    glws::makeCurrent(drawable, shared);
+    GLuint shared_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
+    MESSAGE("shared program id %d\n", shared_program);
+    GLuint shared_program2= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
+    MESSAGE("shared program2 id %d\n", shared_program2);
+    glFinish();
+    
+    glws::makeCurrent(drawable, context);
+    GLuint context_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
+    MESSAGE("context program id %d\n", context_program);
+    glFinish();
+    // yes, can't isolate debug draw context from application context... may have to build a map of object ids or ... export every required object to debug draw context :-(
+
+    //~ glws::makeCurrent(drawable, shared);
     
     // go
     for(;;)
