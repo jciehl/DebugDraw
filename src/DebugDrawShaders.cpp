@@ -15,7 +15,7 @@ std::string read_source( const char *filename )
     FILE *in= fopen(filename, "rt");
     if(in == NULL)
     {
-        ERROR("error reading '%s'.\n", filename);
+        ERROR("error loading source '%s'.\n", filename);
         return source;
     }
     
@@ -29,7 +29,7 @@ std::string read_source( const char *filename )
     }
     
     fclose(in);
-    MESSAGE("reading source '%s'... done.\n", filename);
+    MESSAGE("loading source '%s'... done.\n", filename);
     return source;
 }
     
@@ -89,7 +89,7 @@ int link_program( const GLuint program )
     {
         std::vector<GLchar> log(length, 0);
         glGetProgramInfoLog(program, (GLsizei) length, NULL, &log.front());
-        ERROR("error linking shader program:\n%s\n\nfailed.\n", &log.front());
+        ERROR("error linking shader program:\n%s\nfailed.\n", &log.front());
     }
     
     return -1;
@@ -203,7 +203,7 @@ int assign_uniformiv( GLint location, int size, GLenum type, void *data )
         
         default:
             ERROR("unknown type\n");
-            return-1;
+            return -1;
     }
     
     return 0;
@@ -257,7 +257,7 @@ int assign_uniformfv( GLint location, int size, GLenum type, void *data )
         
         default:
             ERROR("unknown type\n");
-            return-1;
+            return -1;
     }
     
     return 0;
@@ -283,6 +283,10 @@ int assign_program_uniforms( GLint program, GLint active_program )
         if(location < 0)
             // skip uniforms used in the other stages
             continue;
+        
+        if(array_size > 1)
+            //! \todo
+            ERROR("uniform '%s' is an array, not implemented.\n", &name.front());
         
         // resize temp buffer to store uniform values
         data.clear();

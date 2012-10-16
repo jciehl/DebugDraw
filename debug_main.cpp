@@ -27,7 +27,7 @@ int setUniform( const char *name, const gk::Matrix4x4& matrix )
     int location= glGetUniformLocation(program, name);
     if(location < 0)
     {
-        WARNING("uniform '%s': not found.\n");
+        WARNING("uniform '%s': not found.\n", name);
         return -1;
     }
     glUniformMatrix4fv(location, 1, GL_TRUE, matrix);
@@ -39,7 +39,7 @@ int setUniform( const char *name, const float x, const float y, const float z, c
     int location= glGetUniformLocation(program, name);
     if(location < 0)
     {
-        WARNING("uniform '%s': not found.\n");
+        WARNING("uniform '%s': not found.\n", name);
         return -1;
     }
     glUniform4f(location, x, y, z, w);
@@ -54,7 +54,11 @@ void draw( )
     // draw something
     glBindVertexArray(attributes);
     glUseProgram(program);
-    setUniform("color", 1.f, 1.f, 0.f, 1.f);
+    setUniform("color", .8f, .5f, .5f, 1.f);
+    //~ setUniform("colors[0]", .8f, .5f, .5f, 1.f);
+    //~ setUniform("colors[1]", 1.f, 1.f, 0.f, 1.f);
+    //~ setUniform("colors[2]", 1.f, 1.f, 0.f, 1.f);
+    //~ setUniform("colors[3]", 1.f, 1.f, 0.f, 1.f);
     
     gk::Transform model= gk::RotateY(30.f);
     gk::Transform view= gk::Translate( gk::Vector(0.f, 0.f, -30.f) );
@@ -94,6 +98,7 @@ int init( )
         return -1;
     
     // compile some shaders
+    //~ program= create_program_from_file("vertex.vsl", "fragment_array.fsl");
     program= create_program_from_file("vertex.vsl", "fragment.fsl");
     if(program == 0)
         return -1;
