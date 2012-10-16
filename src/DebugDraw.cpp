@@ -536,9 +536,9 @@ const char *attribute_vertex_source= {
 "   #version 330\n\
     uniform mat4 mvpMatrix;\n\
     layout(location= 0) in vec4 position;\n\
-    out vec3 output;\n\
+    out vec3 feedback;\n\
     void main( ) {\n\
-        output= position.xyz;\n\
+        feedback= position.xyz;\n\
         gl_Position= mvpMatrix * position;\n\
     }\n\
 "
@@ -567,13 +567,14 @@ int draw_attribute( const int id, const draw_call& draw_params )
     {
         attribute_program= create_program_from_string(attribute_vertex_source, display_fragment_source);
         
-        const char *varyings= "output";
+        const char *varyings= "feedback";
         //~ const char *varyings= "gl_Position";
         glTransformFeedbackVaryings(attribute_program, 1, &varyings, GL_SEPARATE_ATTRIBS);
         if(link_program(attribute_program) < 0)
         {
             ERROR("error linking attribute display shader program. failed.\n");
-            //! \todo delete attribute_program
+            glDeleteProgram(attribute_program);
+            attribute_program= 0;
             return -1;
         }
     }
@@ -593,12 +594,16 @@ int draw_attribute( const int id, const draw_call& draw_params )
     GLint64 active_feedback_offset= 0;
     GLint64 active_feedback_length= 0;
     glGetIntegeri_v(GL_TRANSFORM_FEEDBACK_BUFFER_BINDING, 0, &active_feedback_buffer);
-    glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_START, 0, &active_feedback_offset);
-    glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_SIZE, 0, &active_feedback_length);
+    if(active_feedback_buffer > 0)
+    {
+        glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_START, 0, &active_feedback_offset);
+        glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_SIZE, 0, &active_feedback_length);
+    }
     
-    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, attribute_program_buffer);
+    // resize feedback buffer, use array_buffer target (bug on ati)
+    glBindBuffer(GL_ARRAY_BUFFER, attribute_program_buffer);
     GLint64 feedback_length= 0;
-    glGetBufferParameteri64v(GL_TRANSFORM_FEEDBACK_BUFFER, GL_BUFFER_SIZE, &feedback_length);
+    glGetBufferParameteri64v(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &feedback_length);
 
     GLint64 stride = active_buffers[id].stride;
     GLint64 count= (active_buffers[id].length - active_buffers[id].offset) / stride;
@@ -611,9 +616,11 @@ int draw_attribute( const int id, const draw_call& draw_params )
     if(feedback_length < length)
     {
         std::vector<unsigned char> zeroes(length, 0);
-        glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER, length, &zeroes.front(), GL_DYNAMIC_COPY);
+        glBufferData(GL_ARRAY_BUFFER, length, &zeroes.front(), GL_DYNAMIC_COPY);
         //~ WARNING("  resize feedback buffer: %d < %d\n", feedback_length, length);
     }
+    
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, attribute_program_buffer);
     
     // convert buffer content
     if(attribute_program_bindings == 0)
@@ -745,16 +752,19 @@ int draw_vertex_stage( const draw_call& draw_params )
         return 0;
     }
 
-    glClearColor( .05f, .05f, .05f, 1.f );
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
     WARNING("draw_vertex_stage( ):\n");
+    
     GLuint vertex_program= cache_get_display_program( VERTEX_STAGE_BIT, display_fragment_source );
     if(vertex_program == 0)
     {
+        glClearColor( .05f, .05f, .05f, 1.f );
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         ERROR("error building vertex display shader program. failed.");
         return -1;
     }
+    
+    glClearColor( .05f, .05f, .05f, 1.f );
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // assign uniforms 
     glUseProgram(vertex_program);
@@ -785,16 +795,20 @@ int draw_geometry_stage( const draw_call& draw_params )
         return 0;
     }
 
-    glClearColor( .05f, .05f, .05f, 1.f );
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
     WARNING("draw_geometry_stage( ):\n");
+    
     GLuint geometry_program= cache_get_display_program( TRANSFORM_STAGES_MASK, display_fragment_source );
     if(geometry_program == 0)
     {
+        // display a solid red background
+        glClearColor( 1.f, .0f, .0f, 1.f );
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         ERROR("error building geometry display shader program. failed.");
         return -1;
     }
+    
+    glClearColor( .05f, .05f, .05f, 1.f );
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // assign uniforms 
     glUseProgram(geometry_program);
@@ -853,17 +867,20 @@ int draw_culling_stage( const draw_call& draw_params )
         return 0;
     }
     
-    glClearColor( .05f, .05f, .05f, 1.f );
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
     WARNING("draw_culling_stage( ):\n");
     
     GLuint culling_program= cache_get_display_program( TRANSFORM_STAGES_MASK, display_fragment_source );
     if(culling_program == 0)
     {
+        // display a solid red background
+        glClearColor( 1.f, .0f, .0f, 1.f );
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         ERROR("error building vertex display shader program. failed.\n");
         return -1;
     }
+    
+    glClearColor( .05f, .05f, .05f, 1.f );
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // assign uniforms 
     glUseProgram(culling_program);

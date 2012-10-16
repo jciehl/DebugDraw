@@ -55,13 +55,13 @@ void draw( )
     glBindVertexArray(attributes);
     glUseProgram(program);
     
-    //~ setUniform("color", .8f, .8f, .8f, 1.f);
+    setUniform("color", .8f, .8f, .8f, 1.f);
     
-    std::vector<float> colors(16, 1.f);
-    GLint location= glGetUniformLocation(program, "colors");
-    if(location < 0)
-        ERROR("unknown uniform.\n");
-    glUniform4fv(location, colors.size() / 4, &colors.front() );
+    //~ std::vector<float> colors(16, 1.f);
+    //~ GLint location= glGetUniformLocation(program, "colors");
+    //~ if(location < 0)
+        //~ ERROR("unknown uniform.\n");
+    //~ glUniform4fv(location, colors.size() / 4, &colors.front() );
     
     gk::Transform model= gk::RotateY(30.f);
     gk::Transform view= gk::Translate( gk::Vector(0.f, 0.f, -30.f) );
@@ -101,8 +101,8 @@ int init( )
         return -1;
     
     // compile some shaders
-    program= create_program_from_file("vertex.vsl", "fragment_array.fsl");
-    //~ program= create_program_from_file("vertex.vsl", "fragment.fsl");
+    //~ program= create_program_from_file("vertex.vsl", "fragment_array.fsl");
+    program= create_program_from_file("vertex.vsl", "fragment.fsl");
     if(program == 0)
         return -1;
 
@@ -145,8 +145,7 @@ void resize( int width, int height )
 // define a callback to use with opengl debug context
 void GLAPIENTRY debuglog( GLenum source, GLenum type, unsigned int id, GLenum severity, GLsizei length, const char* message, void* userParam )
 {
-    printf("openGL: %s\n", message);
-    fflush(stdout);
+    ERROR("openGL: %s\n", message);
 }
 
 
@@ -180,7 +179,7 @@ int main( int argc, char *argv[] )
     while(glGetError() != GL_NO_ERROR) 
         {;}
     
-    //~ // install debug logger
+    // install debug logger
     if(glDebugMessageCallbackARB)
     {
         MESSAGE("debug output.\n");
