@@ -231,10 +231,11 @@ GLuint find_active_shader( const GLenum shader_type )
 {
     for(int i= 0; i < MAX_STAGES; i++)
     {
-        if(shader_types[i] == shader_type && active_shaders[i] != 0)
+        if(shader_types[i] == shader_type)
             return active_shaders[i];
     }
     
+    ERROR("unknown shader type.\n");
     return 0;
 }
 
@@ -271,8 +272,24 @@ GLuint create_display_program( unsigned int mask, const char *fragment_source )
             // not used by the application
             continue;
         
+    #if 1
         // attach selected shader
         glAttachShader(program, active_shaders[stage]);
+    #else
+        // recompiles the shader from source
+        {
+            // get the shader source
+            GLint length;
+            glGetShaderiv(active_shaders[stage], GL_SHADER_SOURCE_LENGTH, &length);
+            
+            std::vector<GLchar> source(length, 0);
+            glGetShaderSource(active_shaders[stage], length, NULL, &source.front());
+            
+            // compile a new shader
+            GLuint shader= create_shader(shader_types[stage], &source.front());
+            glAttachShader(program, shader);
+        }
+    #endif
     }
     
     // attach display fragment shader
@@ -343,7 +360,7 @@ struct program
 };
 
 
-std::vector<program> programs;
+std::vector<program> program_cache;
 
 //! program cache, retrieve an already built shader program or create a new one
 GLuint cache_get_display_program( unsigned int mask, const char *fragment_source )
@@ -355,10 +372,10 @@ GLuint cache_get_display_program( unsigned int mask, const char *fragment_source
             stages[i]= active_shaders[i];
     
     // look up program 
-    int count= (int) programs.size();
+    int count= (int) program_cache.size();
     for(int i= 0; i < count; i++)
-        if(programs[i].match(mask, stages, fragment_source))
-            return programs[i].name;    // hit
+        if(program_cache[i].match(mask, stages, fragment_source))
+            return program_cache[i].name;    // hit
     
     // cache miss, build a new program
     GLuint program_name= create_display_program(mask, fragment_source);
@@ -366,10 +383,17 @@ GLuint cache_get_display_program( unsigned int mask, const char *fragment_source
         return 0;
     
     // cache the new program
-    programs.push_back( program(program_name, mask, stages, fragment_source) );
+    program_cache.push_back( program(program_name, mask, stages, fragment_source) );
     return program_name;
 }
     
+int cache_cleanup( )
+{
+    //! \todo
+    ERROR("not implemented.\n");
+    return -1;
+}
+
 
 int get_active_attributes( )
 {
@@ -694,12 +718,18 @@ int draw_attribute( const char *name, const draw_call& params )
         if(strcmp(&active_attributes[i].name.front(), name) == 0)
             return draw_attribute(i, params);
     
+    glViewport(0, 0, 256, 256);
+    glScissor(0, 0, 256, 256);
+    glEnable(GL_SCISSOR_TEST);
+    
+    // error, display a solid color background ?
+    glClearColor( 1.f, 0.f, 0.f, 1.f );
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     ERROR("attribute '%s' does not exist. can't display attribute buffer contents.\n", name);
     return -1;
 }
 
-
-GLuint vertex_program= 0;
 
 int draw_vertex_stage( const draw_call& draw_params )
 {
@@ -719,7 +749,7 @@ int draw_vertex_stage( const draw_call& draw_params )
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     WARNING("draw_vertex_stage( ):\n");
-    vertex_program= cache_get_display_program( VERTEX_STAGE_BIT, display_fragment_source );
+    GLuint vertex_program= cache_get_display_program( VERTEX_STAGE_BIT, display_fragment_source );
     if(vertex_program == 0)
     {
         ERROR("error building vertex display shader program. failed.");
@@ -741,8 +771,6 @@ int draw_vertex_stage( const draw_call& draw_params )
 }
 
 
-GLuint geometry_program= 0;
-
 int draw_geometry_stage( const draw_call& draw_params )
 {
     glViewport(512, 0, 256, 256);
@@ -761,7 +789,7 @@ int draw_geometry_stage( const draw_call& draw_params )
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     WARNING("draw_geometry_stage( ):\n");
-    geometry_program= cache_get_display_program( TRANSFORM_STAGES_MASK, display_fragment_source );
+    GLuint geometry_program= cache_get_display_program( TRANSFORM_STAGES_MASK, display_fragment_source );
     if(geometry_program == 0)
     {
         ERROR("error building geometry display shader program. failed.");
@@ -782,8 +810,6 @@ int draw_geometry_stage( const draw_call& draw_params )
     return 0;
 }
 
-
-GLuint culling_program= 0;
 
 int draw_culling_stage( const draw_call& draw_params )
 {
@@ -832,7 +858,7 @@ int draw_culling_stage( const draw_call& draw_params )
     
     WARNING("draw_culling_stage( ):\n");
     
-    culling_program= cache_get_display_program( TRANSFORM_STAGES_MASK, display_fragment_source );
+    GLuint culling_program= cache_get_display_program( TRANSFORM_STAGES_MASK, display_fragment_source );
     if(culling_program == 0)
     {
         ERROR("error building vertex display shader program. failed.\n");

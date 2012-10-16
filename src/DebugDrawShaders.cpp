@@ -106,8 +106,8 @@ GLuint create_program( const GLuint vertex, const GLuint fragment )
     if(link_program(program) == 0)
         return program;
     
-    glDeleteShader(vertex);
-    glDeleteShader(fragment);
+    //~ glDeleteShader(vertex);
+    //~ glDeleteShader(fragment);
     glDeleteProgram(program);
     return 0;
 }
@@ -290,7 +290,7 @@ int assign_program_uniforms( GLint program, GLint active_program )
         
         // resize temp buffer to store uniform values
         data.clear();
-        data.resize(glsl_sizeof(array_size, glsl_type));
+        data.resize(glsl_sizeof(1, glsl_type));
         switch(glsl_type)
         {
             case GL_UNSIGNED_INT:
@@ -299,7 +299,7 @@ int assign_program_uniforms( GLint program, GLint active_program )
             case GL_UNSIGNED_INT_VEC4:
                 // unsigned
                 glGetUniformuiv(active_program, i, (GLuint *) &data.front());
-                assign_uniformuiv(location, array_size, glsl_type, &data.front());
+                assign_uniformuiv(location, 1, glsl_type, &data.front());
                 break;
             
             case GL_INT:
@@ -331,7 +331,7 @@ int assign_program_uniforms( GLint program, GLint active_program )
             case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
                 // int + bool + sampler
                 glGetUniformiv(active_program, i, (GLint *) &data.front());
-                assign_uniformiv(location, array_size, glsl_type, &data.front());
+                assign_uniformiv(location, 1, glsl_type, &data.front());
                 break;
                 
             case GL_FLOAT:
@@ -349,7 +349,7 @@ int assign_program_uniforms( GLint program, GLint active_program )
             case GL_FLOAT_MAT4x3:
                 // float + matrix
                 glGetUniformfv(active_program, i, (GLfloat *) &data.front());
-                assign_uniformfv(location, array_size, glsl_type, &data.front());
+                assign_uniformfv(location, 1, glsl_type, &data.front());
                 break;
             
             default:

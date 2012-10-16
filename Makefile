@@ -1,14 +1,19 @@
+CFLAGS= -g -Wall -MMD -MP -I . -I include
+
+LIBDIR= $(PWD)/lib
+
 SRCS= debug_main.cpp Transform.cpp Buffers.cpp DebugDraw.cpp DebugDrawShaders.cpp Logger.cpp
 OBJS= $(SRCS:.cpp=.o)
 
 debug_main: $(OBJS)
-	g++ -g -o $@ $^ -L lib -Wl,-rpath,lib -lGL -lglut -lGLEW
+	@echo $(LIBDIR)
+	g++ -g -o $@ $^ -L lib -Wl,-rpath,$(LIBDIR) -lGL -lglut -lGLEW
 
 %.o: %.cpp
-	g++ -g -Wall -MMD -MP -I . -I include/ -c $<
+	g++ $(CFLAGS) -c $<
 
 %.o: src/%.cpp
-	g++ -g -Wall -MMD -MP -I . -I include/ -c $<
+	g++ $(CFLAGS) -c $<
 
 clean:
 	rm -f debug_main
