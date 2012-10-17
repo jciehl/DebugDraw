@@ -62,7 +62,7 @@ void draw( )
         // usual openGL draw call:
         // glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, 0);
         // replaced by:
-        gk::DebugDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, 0, "position");
+        gk::DebugDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, 0, "position");        //!< indicate position attribute name
     }
     else
     {
@@ -153,33 +153,46 @@ int main( )
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
     }
     
+    // create a shared context
+    //~ glws::Context *shared= glws::createContext(visual, context, glws::PROFILE_CORE, true);
+    //~ if(shared == NULL)
+        //~ ERROR("error creating shared context.\n");
+    
+    // test: shared object namespace ?
+    //~ glws::makeCurrent(drawable, shared);
+    GLuint shared_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
+    MESSAGE("program id %d\n", shared_program);
+    GLuint shared_program2= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
+    MESSAGE("program2 id %d\n", shared_program2);
+    glFinish();
+    
+    // test: reuse of object names after deletion (in a single context) ?
+    MESSAGE("cleanup.\n");
+    gk::debug::cleanup_shaders();
+    gk::debug::cleanup_programs();
+    
+    //~ glws::makeCurrent(drawable, context);
+    GLuint context_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
+    MESSAGE("program3 id %d\n", context_program);
+    glFinish();
+    // yes, can't isolate debug draw context from application context... 
+    // may have to build a map of object ids or ... export every required object to debug draw context :-(
+    // or export a single draw, then close the trace
+
+    MESSAGE("cleanup.\n");
+    gk::debug::cleanup_shaders();
+    gk::debug::cleanup_programs();
+    //~ glws::makeCurrent(drawable, shared);
+    
+    // yes, object names are reused after cleanup, at least linux nvidia 304.51
+    // may output pipeline stages, then cleanup everything and process next call without object namespace pollution
+    
     // init shaders, load objects, etc.
     if(init() < 0)
     {
         ERROR("failed.\n");
         return 1;
     }
-    
-    // create a shared context
-    glws::Context *shared= glws::createContext(visual, context, glws::PROFILE_CORE, true);
-    if(shared == NULL)
-        ERROR("error creating shared context.\n");
-    
-    // test: shared object namespace ?
-    glws::makeCurrent(drawable, shared);
-    GLuint shared_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
-    MESSAGE("shared program id %d\n", shared_program);
-    GLuint shared_program2= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
-    MESSAGE("shared program2 id %d\n", shared_program2);
-    glFinish();
-    
-    glws::makeCurrent(drawable, context);
-    GLuint context_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
-    MESSAGE("context program id %d\n", context_program);
-    glFinish();
-    // yes, can't isolate debug draw context from application context... may have to build a map of object ids or ... export every required object to debug draw context :-(
-
-    //~ glws::makeCurrent(drawable, shared);
     
     // go
     for(;;)

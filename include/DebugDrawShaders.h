@@ -13,12 +13,18 @@ namespace debug {
 
 std::string read_source( const char *filename );
 
-GLuint create_shader( GLenum type, const char *source );
-GLuint create_shader( GLenum type, const std::string& source );
+GLuint create_shader( const GLenum type, const char *source );
+GLuint create_shader( const GLenum type, const std::string& source );
 
+GLuint create_sahder( const GLenum  type );
+void cleanup_shaders( );
+    
 GLuint create_program( const GLuint vertex, const GLuint fragment );
 GLuint create_program_from_string( const char *vertex, const char *fragment );
 GLuint create_program_from_file( const char *vertex, const char *fragment );
+
+GLuint create_program( );
+void cleanup_programs();
 
 int link_program( GLuint program );
 

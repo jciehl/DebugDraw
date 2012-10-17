@@ -33,13 +33,35 @@ std::string read_source( const char *filename )
     MESSAGE("loading source '%s'... done.\n", filename);
     return source;
 }
+
+
+std::vector<GLuint> shader_manager;
+
+GLuint create_shader( const GLenum type )
+{
+    GLuint shader= glCreateShader(type);
+    if(shader > 0)
+        shader_manager.push_back(shader);
     
-GLuint create_shader( GLenum type, const char *source )
+    return shader;
+}
+
+void cleanup_shaders( )
+{
+    const int count= (int) shader_manager.size();
+    for(int i= 0; i < count; i++)
+        glDeleteShader(shader_manager[i]);
+    
+    shader_manager.clear();
+}
+
+
+GLuint create_shader( const GLenum type, const char *source )
 {
     if(source == NULL)
         return 0;
     
-    GLuint shader= glCreateShader(type);
+    GLuint shader= create_shader(type);
     const char *sources= source;
     glShaderSource(shader, 1, &sources, NULL);
     glCompileShader(shader);
@@ -60,11 +82,10 @@ GLuint create_shader( GLenum type, const char *source )
         ERROR("error compiling shader:\n%s\nfailed.\n", &log.front());
     }
     
-    glDeleteShader(shader);
     return 0;
 }
 
-GLuint create_shader( GLenum type, const std::string& source )
+GLuint create_shader( const GLenum type, const std::string& source )
 {
     if(source.empty())
         return 0;
@@ -95,21 +116,40 @@ int link_program( const GLuint program )
     
     return -1;
 }
+
+
+std::vector<GLuint> program_manager;
+
+GLuint create_program( )
+{
+    GLuint program= glCreateProgram();
+    if(program > 0)
+        program_manager.push_back(program);
     
+    return program;
+}
+
+void cleanup_programs( )
+{
+    const int count= (int) program_manager.size();
+    for(int i= 0; i < count; i++)
+        glDeleteProgram(program_manager[i]);
+    
+    program_manager.clear();
+}
+
+
 GLuint create_program( const GLuint vertex, const GLuint fragment )
 {
     if(vertex == 0 || fragment == 0)
         return 0;
     
-    GLuint program= glCreateProgram();
+    GLuint program= create_program();
     glAttachShader(program, vertex);
     glAttachShader(program, fragment);
     if(link_program(program) == 0)
         return program;
     
-    //~ glDeleteShader(vertex);
-    //~ glDeleteShader(fragment);
-    glDeleteProgram(program);
     return 0;
 }
 
@@ -287,7 +327,7 @@ int assign_program_uniforms( GLint program, GLint active_program )
         
         if(array_size > 1)
             //! \todo
-            ERROR("uniform '%s' is an array, not implemented.\n", &name.front());
+            ERROR("uniform '%s' is an array (size %d), not implemented.\n", &name.front(), array_size);
         
         // resize temp buffer to store uniform values
         data.clear();

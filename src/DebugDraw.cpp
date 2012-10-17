@@ -259,7 +259,7 @@ GLuint create_display_program( unsigned int mask, const char *fragment_source )
     if(mask == 0 || fragment_source == NULL)
         return 0;
     
-    GLuint program= glCreateProgram();
+    GLuint program= create_program();
     if(program == 0)
         return 0;
     
@@ -305,8 +305,6 @@ GLuint create_display_program( unsigned int mask, const char *fragment_source )
     if(link_program(program) < 0)
     {
         ERROR("error linking display shader program. failed.\n");
-        glDeleteProgram(program);
-        glDeleteShader(fragment_shader);
         return 0;
     }
     
@@ -574,7 +572,6 @@ int draw_attribute( const int id, const draw_call& draw_params )
         if(link_program(attribute_program) < 0)
         {
             ERROR("error linking attribute display shader program. failed.\n");
-            glDeleteProgram(attribute_program);
             attribute_program= 0;
             return -1;
         }
@@ -957,7 +954,7 @@ void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count
     //! \todo create a standard framebuffer, when the application uses a special one.
     if(debug::active_framebuffer != 0)
     {
-        WARNING("rendering to an application defined framebuffer, will not work.\n");
+        WARNING("rendering to an application defined framebuffer, will not show anything.\n");
     }
     
     GLfloat active_clear_color[4];
@@ -984,6 +981,9 @@ void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count
     debug::draw_geometry_stage(params);
     debug::draw_culling_stage(params);
     debug::draw_fragment_stage(params);
+    
+    // cleanup programs, shaders, buffers, framebuffers, textures
+    //! \todo
     
     // restore application state
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, debug::active_framebuffer);    
@@ -1042,7 +1042,7 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     //! \todo create a standard framebuffer, when the application uses a special one.
     if(debug::active_framebuffer != 0)
     {
-        WARNING("rendering to an application defined framebuffer, will not work.\n");
+        WARNING("rendering to an application defined framebuffer, will not show anything.\n");
     }
     
     GLfloat active_clear_color[4];
@@ -1069,6 +1069,9 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     debug::draw_geometry_stage(params);
     debug::draw_culling_stage(params);
     debug::draw_fragment_stage(params);
+    
+    // cleanup programs, shaders, buffers, framebuffers, textures
+    //! \todo
     
     // restore application state
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, debug::active_framebuffer);
