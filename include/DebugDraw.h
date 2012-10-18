@@ -5,6 +5,10 @@
 #include "glimports.hpp"
 
 
+extern glws::Visual *visual;
+extern glws::Drawable *drawable;
+extern glws::Context *context;
+
 namespace gk {
     
 void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count, const char *position= NULL );

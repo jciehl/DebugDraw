@@ -7,8 +7,10 @@
 
 #include "Logger.h"
 #include "DebugDraw.h"
-#include "DebugDrawShaders.h"
+
 #include "Buffers.h"
+#include "Programs.h"
+
 #include "Transform.h"
 
 
@@ -79,8 +81,6 @@ void draw( )
 
 int init( )
 {
-    using namespace gk::debug;  // use available shader helpers from DebugDraw.
-    
     mesh= read_OBJ("bigguy.vbo.obj");   // read a mesh
     if(mesh.count == 0)
         return -1;
@@ -128,18 +128,17 @@ int main( )
 {
     // create a context using glws
     glws::init();
-    glws::Visual *visual= glws::createVisual(true, glws::PROFILE_CORE);
+    visual= glws::createVisual(true, glws::PROFILE_CORE);
     //~ glws::Visual *visual= glws::createVisual(true);
     assert(visual != NULL);
-    glws::Drawable *drawable= glws::createDrawable(visual, 1280, 768);
+    drawable= glws::createDrawable(visual, 1280, 768);
     assert(drawable != NULL);
-    glws::Context *context= glws::createContext(visual, NULL, glws::PROFILE_CORE, true);
+    context= glws::createContext(visual, NULL, glws::PROFILE_CORE, true);
     //~ glws::Context *context= glws::createContext(visual, NULL);
     assert(context != NULL);
     
     glws::makeCurrent(drawable, context);
     drawable->show();
-    //~ glws::processEvents();
     
     // simple check
     MESSAGE("openGL version: '%s'\nGLSL version: '%s'\n",
@@ -152,41 +151,7 @@ int main( )
         glDebugMessageCallbackARB(debuglog, NULL);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
     }
-    
-    // create a shared context
-    //~ glws::Context *shared= glws::createContext(visual, context, glws::PROFILE_CORE, true);
-    //~ if(shared == NULL)
-        //~ ERROR("error creating shared context.\n");
-    
-    // test: shared object namespace ?
-    //~ glws::makeCurrent(drawable, shared);
-    GLuint shared_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
-    MESSAGE("program id %d\n", shared_program);
-    GLuint shared_program2= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
-    MESSAGE("program2 id %d\n", shared_program2);
-    glFinish();
-    
-    // test: reuse of object names after deletion (in a single context) ?
-    MESSAGE("cleanup.\n");
-    gk::debug::cleanup_shaders();
-    gk::debug::cleanup_programs();
-    
-    //~ glws::makeCurrent(drawable, context);
-    GLuint context_program= gk::debug::create_program_from_file("vertex.vsl", "fragment.fsl");
-    MESSAGE("program3 id %d\n", context_program);
-    glFinish();
-    // yes, can't isolate debug draw context from application context... 
-    // may have to build a map of object ids or ... export every required object to debug draw context :-(
-    // or export a single draw, then close the trace
 
-    MESSAGE("cleanup.\n");
-    gk::debug::cleanup_shaders();
-    gk::debug::cleanup_programs();
-    //~ glws::makeCurrent(drawable, shared);
-    
-    // yes, object names are reused after cleanup, at least linux nvidia 304.51
-    // may output pipeline stages, then cleanup everything and process next call without object namespace pollution
-    
     // init shaders, load objects, etc.
     if(init() < 0)
     {

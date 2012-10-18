@@ -394,7 +394,7 @@ int assign_program_uniforms( GLint program, GLint active_program )
                 break;
             
             default:
-                ERROR("unknonw type\n");
+                ERROR("unknown type\n");
                 break;
         }
     }

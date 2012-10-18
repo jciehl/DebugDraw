@@ -6,24 +6,72 @@
 #include <vector>
 #include <limits>
 
+#include "glws.hpp"
+#include "glproc.hpp"
+
 #include "Logger.h"
 #include "DebugDraw.h"
 #include "DebugDrawShaders.h"
-#include "glproc.hpp"
 
 #include "Transform.h"
+
+
+// context switch implementation should be in a separate file
+glws::Visual *visual= NULL;
+glws::Drawable *drawable= NULL;
+glws::Context *context= NULL;
 
 
 namespace gk {
     
 namespace debug {
 
+// context switch implementation should be in a separate file, eg DebugDraw_ws
+glws::Context *shared= NULL;
+    
+int create_debug_context( )
+{
+    if(shared != NULL)
+        return 0;
+    if(visual == NULL || context == NULL)
+        return -1;
+    
+    // create a shared context
+    shared= glws::createContext(visual, context, glws::PROFILE_CORE, true);
+    if(shared == NULL)
+        ERROR("error creating shared context.\n");
+    
+    return 0;
+}
+
+int use_debug_context( )
+{
+    if(drawable == NULL || shared == NULL)
+    {
+        ERROR("can't use debug context.\n");
+        return -1;
+    }
+    
+    return (glws::makeCurrent(drawable, shared) ? 0 : -1);
+}
+
+int restore_context( )
+{
+    if(drawable == NULL || context == NULL)
+        return -1;
+    
+    return (glws::makeCurrent(drawable, context) ? 0 : -1);
+}
+
+
+// application state
 GLint active_cull_test= 0;
 GLint active_polygon_modes[2];  //! \bug nvidia driver fills 2 GLenums instead of 1, according to state tables GL 4.3 core profile
 GLint active_viewport[4];
 
 GLint active_framebuffer= 0;
-    
+
+// pipeline stage ids
 GLenum shader_types[]= {
     GL_VERTEX_SHADER, 
     GL_TESS_CONTROL_SHADER,
@@ -186,7 +234,7 @@ int get_active_program_stages( )
     glGetProgramiv(active_program, GL_LINK_STATUS, &linked);
     if(linked == GL_FALSE)
     {
-        ERROR("shader program is not linked.\n");
+        ERROR("shader program is not linked. can't display stages.\n");
         return -1;      // program can't run
     }
     
@@ -208,7 +256,7 @@ int get_active_program_stages( )
         glGetShaderiv(shaders[i], GL_SHADER_TYPE, &type);
         
         int stage= 0;
-        const char *type_name= "<unknown>";
+        const char *type_name= "<oops>";
         for(stage= 0; stage < MAX_STAGES; stage++)
         {
             if(shader_types[stage] != (GLenum) type)
@@ -220,7 +268,7 @@ int get_active_program_stages( )
             type_name, shaders[i], 
             stage, shader_type_names[stage]);
 
-        // assert shader order: vertex, control, evaluation, geometry, fragment, has to be compatible with shader_stages[] order.
+        // assert shader_stages[] order.
         active_shaders[stage]= shaders[i];
     }
     
@@ -277,16 +325,14 @@ GLuint create_display_program( unsigned int mask, const char *fragment_source )
         // attach selected shader
         glAttachShader(program, active_shaders[stage]);
     #else
-        // recompiles the shader from source
+        // recompile shader from source
         {
-            // get the shader source
             GLint length;
             glGetShaderiv(active_shaders[stage], GL_SHADER_SOURCE_LENGTH, &length);
             
             std::vector<GLchar> source(length, 0);
             glGetShaderSource(active_shaders[stage], length, NULL, &source.front());
             
-            // compile a new shader
             GLuint shader= create_shader(shader_types[stage], &source.front());
             glAttachShader(program, shader);
         }
@@ -360,6 +406,7 @@ struct program
 
 
 std::vector<program> program_cache;
+GLuint attribute_program= 0;
 
 //! program cache, retrieve an already built shader program or create a new one
 GLuint cache_get_display_program( unsigned int mask, const char *fragment_source )
@@ -388,9 +435,9 @@ GLuint cache_get_display_program( unsigned int mask, const char *fragment_source
     
 int cache_cleanup( )
 {
-    //! \todo
-    ERROR("not implemented.\n");
-    return -1;
+    attribute_program= 0;
+    program_cache.clear();
+    return 0;
 }
 
 
@@ -543,10 +590,10 @@ const char *attribute_vertex_source= {
 "
 };
 
-GLuint attribute_program= 0;
 GLuint attribute_program_buffer= 0;
 GLuint attribute_program_bindings= 0;
 
+//! \bug don't pollute debug context state with application state on errors !!
 int draw_attribute( const int id, const draw_call& draw_params )
 {
     WARNING("draw_attribute(%d):\n", id);
@@ -572,7 +619,6 @@ int draw_attribute( const int id, const draw_call& draw_params )
         if(link_program(attribute_program) < 0)
         {
             ERROR("error linking attribute display shader program. failed.\n");
-            attribute_program= 0;
             return -1;
         }
     }
@@ -598,7 +644,7 @@ int draw_attribute( const int id, const draw_call& draw_params )
         glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_SIZE, 0, &active_feedback_length);
     }
     
-    // resize feedback buffer, use array_buffer target (bug on ati)
+    // resize feedback buffer, use array_buffer target (can't use transform feedback target on ati, fglrx 12.9beta)
     glBindBuffer(GL_ARRAY_BUFFER, attribute_program_buffer);
     GLint64 feedback_length= 0;
     glGetBufferParameteri64v(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &feedback_length);
@@ -618,16 +664,16 @@ int draw_attribute( const int id, const draw_call& draw_params )
         //~ WARNING("  resize feedback buffer: %d < %d\n", feedback_length, length);
     }
     
-    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, attribute_program_buffer);
-    
     // convert buffer content
     if(attribute_program_bindings == 0)
         glGenVertexArrays(1, &attribute_program_bindings);
     if(attribute_program_bindings == 0)
     {
-        //! \todo restore application state
+        glBindBuffer(GL_ARRAY_BUFFER, active_vertex_buffer);
         return -1;
     }
+    
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, attribute_program_buffer);
 
     // bind the attribute buffer
     glBindVertexArray(attribute_program_bindings);
@@ -651,45 +697,66 @@ int draw_attribute( const int id, const draw_call& draw_params )
     
     glDisable(GL_RASTERIZER_DISCARD);
     
-    // read back buffer content / glMap ?
-    std::vector<float> positions(count * 3, 0.f);
-    glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, length, &positions.front());
-
+    // read back buffer content
+    Point bmin;
+    Point bmax;
+    // using glMapBuffer()
+    gk::Point *positions= (gk::Point *) glMapBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, GL_READ_ONLY);
+    if(positions == NULL)
+    {
+        ERROR("cant' read attribute '%s', vertex buffer object %d. failed.\n", 
+            &active_attributes[id].name.front(), active_buffers[id].buffer);
+    }
+    else
+    {
+        // compute bbox
+        bmin= Point( std::numeric_limits<float>::infinity() );
+        bmax= Point( - std::numeric_limits<float>::infinity() );
+        for(int i= 0; i < count; i++)
+        {
+            const Point &p= positions[i];
+            
+            bmin.x= std::min(p.x, bmin.x);
+            bmin.y= std::min(p.y, bmin.y);
+            bmin.z= std::min(p.z, bmin.z);
+            
+            bmax.x= std::max(p.x, bmax.x);
+            bmax.y= std::max(p.y, bmax.y);
+            bmax.z= std::max(p.z, bmax.z);
+        }
+        glUnmapBuffer(GL_TRANSFORM_FEEDBACK_BUFFER);
+        
+        WARNING("  bbox (%f %f %f) (%f %f %f)\n", bmin.x, bmin.y, bmin.z, bmax.x, bmax.y, bmax.z);
+    }
+    
     // restore previous transform feedback 
     if(active_feedback_buffer == 0 || active_feedback_length == 0)
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, active_feedback_buffer);
     else
         glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, 0, active_feedback_buffer, active_feedback_offset, active_feedback_length);
     
-    // compute bbox
-    Point bmin( std::numeric_limits<float>::infinity() );
-    Point bmax( - std::numeric_limits<float>::infinity() );
-    for(int i= 0; i < count; i++)
-    {
-        Point p( positions[3*i], positions[3*i+1], positions[3*i+2] );
-        
-        bmin.x= std::min(p.x, bmin.x);
-        bmin.y= std::min(p.y, bmin.y);
-        bmin.z= std::min(p.z, bmin.z);
-        
-        bmax.x= std::max(p.x, bmax.x);
-        bmax.y= std::max(p.y, bmax.y);
-        bmax.z= std::max(p.z, bmax.z);
-    }
-    
-    WARNING("  bbox (%f %f %f) (%f %f %f)\n", bmin.x, bmin.y, bmin.z, bmax.x, bmax.y, bmax.z);
-    
     // compute a sensible transform to display the data
     float fov= 25.f;
     Point center= (bmin + bmax) * .5f;
     float radius= Distance(center, bmax);
-    float distance= radius / tanf(fov / 180.f * M_PI);
+    if(radius == 0.f)
+    {
+        ERROR("can't get valid data from attribute '%s', vertex buffer object %d. failed.\n", 
+            &active_attributes[id].name.front(), active_buffers[id].buffer);
+        
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, active_vertex_buffer);
+        glBindVertexArray(active_vertex_array);
+        return -1;
+    }
     
+    float distance= radius / tanf(fov / 180.f * M_PI);
     Transform view= LookAt( Point(0.f, 0.f, distance), center, Vector(0.f, 1.f, 0.f) );
     Transform projection= Perspective( fov *2.f, 1.f, distance - radius, distance + radius );
     Transform mvp= projection * view;
     
-    glUniformMatrix4fv( glGetUniformLocation(attribute_program, "mvpMatrix"), 
+    glUniformMatrix4fv( 
+        glGetUniformLocation(attribute_program, "mvpMatrix"), 
         1, GL_TRUE, mvp.matrix() );
     
     // draw the data
@@ -708,7 +775,6 @@ int draw_attribute( const int id, const draw_call& draw_params )
     // restore application state
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, active_vertex_buffer);
-    
     glBindVertexArray(active_vertex_array);
     WARNING("  done.\n");
     return 0;
@@ -755,7 +821,7 @@ int draw_vertex_stage( const draw_call& draw_params )
     GLuint vertex_program= cache_get_display_program( VERTEX_STAGE_BIT, display_fragment_source );
     if(vertex_program == 0)
     {
-        glClearColor( .05f, .05f, .05f, 1.f );
+        glClearColor( 1.f, .0f, .0f, 1.f );
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         ERROR("error building vertex display shader program. failed.");
         return -1;
@@ -894,7 +960,8 @@ int draw_culling_stage( const draw_call& draw_params )
     return 0;    
 }
 
-
+//! \todo return the thumbnail itself 
+//! image::Image *, cf apitrace/retrace/glstate_images.cpp
 int draw_fragment_stage( const draw_call& draw_params )
 {
     glViewport(1024, 0, 256, 256);
@@ -929,7 +996,6 @@ int draw_fragment_stage( const draw_call& draw_params )
 }
 
 }       // namespace debug
-
 
 void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count, const char *position )
 {
@@ -983,7 +1049,9 @@ void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count
     debug::draw_fragment_stage(params);
     
     // cleanup programs, shaders, buffers, framebuffers, textures
-    //! \todo
+    debug::cache_cleanup();
+    debug::cleanup_shaders();
+    debug::cleanup_programs();
     
     // restore application state
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, debug::active_framebuffer);    
@@ -1015,6 +1083,7 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     // check application bugs
     if(debug::active_index_buffer == 0)
     {
+        // prevent driver crash
         ERROR("glDrawElements( ): no index buffer.\n");
         return;
     }
@@ -1057,6 +1126,10 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     debug::active_cull_test= glIsEnabled(GL_CULL_FACE);
     glGetIntegerv(GL_POLYGON_MODE, debug::active_polygon_modes);
     
+    // switch to debug context
+    if(debug::create_debug_context() < 0 || debug::use_debug_context() < 0)
+        return;
+    
     // display stages    
     if(position == NULL)
     {
@@ -1071,9 +1144,15 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     debug::draw_fragment_stage(params);
     
     // cleanup programs, shaders, buffers, framebuffers, textures
-    //! \todo
+    debug::cache_cleanup();
+    debug::cleanup_shaders();
+    debug::cleanup_programs();
     
     // restore application state
+    if(debug::restore_context() < 0)
+        ERROR("oops!\n");
+    
+#if 0
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, debug::active_framebuffer);
     glBindVertexArray(debug::active_vertex_array);
     glUseProgram(debug::active_program);
@@ -1091,6 +1170,7 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
         glDisable(GL_CULL_FACE);
     else
         glEnable(GL_CULL_FACE);
+#endif
 }
     
 }       // namespace 

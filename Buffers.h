@@ -2,8 +2,6 @@
 #ifndef _BUFFERS_H
 #define _BUFFERS_H
 
-#include <vector>
-
 #include "glimports.hpp"
 
 
