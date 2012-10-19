@@ -163,11 +163,11 @@ int main( )
     for(;;)
     {
         glws::processEvents();
-        
         draw();
         drawable->swapBuffers();
     }
-
+    //~ sleep(1);
+    
     // clean up
     quit();
     glws::cleanup();

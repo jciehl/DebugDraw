@@ -16,7 +16,7 @@
 #include "Transform.h"
 
 
-// context switch implementation should be in a separate file
+// glws context switch implementation should be in a separate file
 glws::Visual *visual= NULL;
 glws::Drawable *drawable= NULL;
 glws::Context *context= NULL;
@@ -26,10 +26,10 @@ namespace gk {
     
 namespace debug {
 
-// context switch implementation should be in a separate file, eg DebugDraw_ws
+// glws context switch implementation should be in a separate file
 glws::Context *shared= NULL;
     
-int create_debug_context( )
+int create_context( )
 {
     if(shared != NULL)
         return 0;
@@ -44,7 +44,7 @@ int create_debug_context( )
     return 0;
 }
 
-int use_debug_context( )
+int use_context( )
 {
     if(drawable == NULL || shared == NULL)
     {
@@ -452,7 +452,7 @@ int get_active_attributes( )
     glGetProgramiv(active_program, GL_ACTIVE_ATTRIBUTES, &active_attribute_count);
     active_attributes.resize(active_attribute_count);
     
-    WARNING("%d attributes:\n", active_attribute_count);
+    WARNING("%d required attributes:\n", active_attribute_count);
     
     GLint attribute_length= 0;
     glGetProgramiv(active_program, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &attribute_length);
@@ -489,25 +489,35 @@ int get_active_buffer_bindings( )
     WARNING("active buffers:\n");
     
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &active_vertex_buffer);
-    WARNING("  vertex buffer object %d\n", active_vertex_buffer);
+    if(active_vertex_buffer == 0)
+        WARNING("  no vertex buffer object\n");
+    else
+        WARNING("  vertex buffer object %d\n", active_vertex_buffer);
     
     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &active_index_buffer);
-    WARNING("  index buffer object %d\n", active_index_buffer);
+    if(active_index_buffer == 0)
+        WARNING("  no index buffer object\n");
+    else
+        WARNING("  index buffer object %d\n", active_index_buffer);
     
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &active_vertex_array);
-    
     if(active_vertex_array == 0)
         WARNING("  no vertex array object\n");
     else
         WARNING("  vertex array object %d:\n", active_vertex_array);
     
+    bool failed= false;
     active_buffers.resize(active_attribute_count);
     for(int i= 0; i < active_attribute_count; i++)
     {
         GLint attribute_buffer= 0;
         glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &attribute_buffer);
-        if(glGetError() != GL_NO_ERROR)
+        if(attribute_buffer == 0)
+        {
+            ERROR("no vertex buffer bound to attribute %d '%s'. can't draw anything.\n", i, &active_attributes[i].name.front());
+            failed= true;
             break;
+        }
         
         GLint size, type, stride;
         GLint enabled, normalized;
@@ -573,7 +583,10 @@ int get_active_buffer_bindings( )
     
     // restore state
     glBindBuffer(GL_ARRAY_BUFFER, active_vertex_buffer);
-    WARNING("  done.\n");
+    if(failed)
+        WARNING("  failed.\n");
+    else
+        WARNING("  done.\n");
     return 0;
 }
 
@@ -601,10 +614,11 @@ int draw_attribute( const int id, const draw_call& draw_params )
     if(id < 0 || id >= active_attribute_count)
         return -1;
     
-    if(active_buffers[id].length == 0)
+    if(active_buffers[id].buffer == 0 || active_buffers[id].length == 0)
     {
-        WARNING("  attribute buffer %d, null length. failed\n", active_buffers[id].buffer);
-        return 0;
+        WARNING("  attribute %d '%s' vertex buffer object %d, null length. can't draw anything. failed.\n", 
+            id, &active_attributes[id].name.front(), active_buffers[id].buffer);
+        return -1;
     }
 
     // get attribute buffer content in 'standard' vec3 form
@@ -785,19 +799,26 @@ int draw_attribute( const char *name, const draw_call& params )
     if(name == NULL)
         return -1;
     
+    int id= -1;
     for(int i= 0; i < active_attribute_count; i++)
         if(strcmp(&active_attributes[i].name.front(), name) == 0)
-            return draw_attribute(i, params);
+        {
+            id= i;
+            break;
+        }
     
-    glViewport(0, 0, 256, 256);
-    glScissor(0, 0, 256, 256);
-    glEnable(GL_SCISSOR_TEST);
-    
-    // error, display a solid color background ?
-    glClearColor( 1.f, 0.f, 0.f, 1.f );
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    ERROR("attribute '%s' does not exist. can't display attribute buffer contents.\n", name);
+    if(id < 0 || draw_attribute(id, params) < 0)
+    {
+        glViewport(0, 0, 256, 256);
+        glScissor(0, 0, 256, 256);
+        glEnable(GL_SCISSOR_TEST);
+        
+        // error, display a solid color background ?
+        glClearColor( 1.f, 0.f, 0.f, 1.f );
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+    if(id < 0)
+        ERROR("attribute '%s' does not exist. can't display attribute buffer contents.\n", name);
     return -1;
 }
 
@@ -995,6 +1016,102 @@ int draw_fragment_stage( const draw_call& draw_params )
     return 0;    
 }
 
+
+GLuint stage_framebuffer= 0;
+GLuint stage_texture= 0;
+GLuint stage_depth= 0;
+
+int create_framebuffer( const int w, const int h )
+{
+    if(stage_framebuffer > 0)
+        return 0;
+    
+    if(stage_texture == 0)
+    {
+        glGenTextures(1, &stage_texture);
+        glBindTexture(GL_TEXTURE_2D, stage_texture);
+
+        std::vector<unsigned char> zeroes(w * h * 3, 0);
+        glTexImage2D(GL_TEXTURE_2D, 0, 
+            GL_RGB, w, h, 0,
+            GL_RGB, GL_UNSIGNED_BYTE, &zeroes.front());
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    if(stage_texture == 0)
+        return -1;
+    
+    if(stage_depth == 0)
+    {
+        glGenTextures(1, &stage_depth);
+        glBindTexture(GL_TEXTURE_2D, stage_depth);
+
+        std::vector<unsigned char> zeroes(w * h * 4, 0);
+        glTexImage2D(GL_TEXTURE_2D, 0, 
+            GL_DEPTH_COMPONENT, w, h, 0,
+            GL_DEPTH_COMPONENT, GL_FLOAT, &zeroes.front());
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    if(stage_depth == 0)
+        return -1;
+        
+    glGenFramebuffers(1, &stage_framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, stage_framebuffer);
+    
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, stage_texture, 0);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, stage_depth, 0);
+    
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    return 0;
+}
+
+int cleanup_framebuffer( )
+{
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &stage_framebuffer);
+    glDeleteTextures(1, &stage_texture);
+    glDeleteTextures(1, &stage_depth);
+    
+    stage_framebuffer= 0;
+    stage_texture= 0;
+    stage_depth= 0;    
+    return 0;
+}
+
+int use_framebuffer( )
+{
+    if(stage_framebuffer == 0)
+        return -1;
+    
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, stage_framebuffer);
+    return 0;
+}
+
+int restore_framebuffer( )
+{
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    return 0;
+}
+
+class Image;
+Image *get_framebuffer_snapshot( )
+{
+    if(use_framebuffer() < 0)
+        return NULL;
+    
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    
+    std::vector<unsigned char> pixels(1280*256*3, 0);
+    glReadPixels(0, 0, 1280, 256, GL_RGB, GL_UNSIGNED_BYTE, &pixels.front());
+    
+    return NULL;
+}
+
+
 }       // namespace debug
 
 void DebugDrawArrays( const GLenum  mode, const GLint first, const GLsizei count, const char *position )
@@ -1127,8 +1244,15 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     glGetIntegerv(GL_POLYGON_MODE, debug::active_polygon_modes);
     
     // switch to debug context
-    if(debug::create_debug_context() < 0 || debug::use_debug_context() < 0)
+    if(debug::create_context() < 0 || debug::use_context() < 0)
         return;
+    
+    // switch to debug framebuffer
+    if(debug::create_framebuffer(1280, 256) < 0 || debug::use_framebuffer() < 0)
+    {
+        debug::restore_context();
+        return;
+    }
     
     // display stages    
     if(position == NULL)
@@ -1143,10 +1267,18 @@ void DebugDrawElements( const GLenum mode, const GLsizei count, const GLenum typ
     debug::draw_culling_stage(params);
     debug::draw_fragment_stage(params);
     
+    // display pipeline stage ouputs
+    glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, debug::stage_framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0),
+    glBlitFramebuffer(0, 0, 1280, 256,  0, 0, 1280, 256, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    
     // cleanup programs, shaders, buffers, framebuffers, textures
     debug::cache_cleanup();
     debug::cleanup_shaders();
     debug::cleanup_programs();
+    debug::cleanup_framebuffer();
     
     // restore application state
     if(debug::restore_context() < 0)
